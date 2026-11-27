@@ -628,14 +628,28 @@ function listItems(s){
   return parts;
 }
 function readBody(text){
-  return String(text).split(/(?<![A-Z]\.)(?<=[.!?])\s+(?=[A-Z"“])/).filter(Boolean).map(chunk=>{
+  const chunks=String(text).split(/(?<![A-Z]\.)(?<=[.!?])\s+(?=[A-Z"“])/).filter(Boolean);
+  const isPoint=s=>{const t=s.trim();return t.split(/\s+/).length<=18&&t.length<=140&&!t.includes(':');};
+  const asList=run=>`<ul class="sf-points">${run.map(i=>`<li>${esc(i.trim().replace(/\.$/,''))}</li>`).join('')}</ul>`;
+  const asChunk=chunk=>{
     const listed=chunk.match(/^([\s\S]+?):\s+(.+?)([.!?])$/);
     if(listed){
       const items=listItems(listed[2]);
       if(items) return `<p>${esc(listed[1])}:</p><ul class="sf-points">${items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`;
     }
     return `<p>${esc(chunk)}</p>`;
-  }).join('');
+  };
+  const out=[];
+  let run=[];
+  const flush=()=>{if(run.length>=3&&run.every(isPoint))out.push(asList(run));else run.forEach(c=>out.push(asChunk(c)));run=[];};
+  chunks.forEach(chunk=>{
+    if(chunk.includes(':')){flush();out.push(asChunk(chunk));return;}
+    if(isPoint(chunk)){run.push(chunk);return;}
+    flush();
+    out.push(asChunk(chunk));
+  });
+  flush();
+  return out.join('');
 }
 const fm=n=>(n<0?'−$':'$')+Math.abs(Math.round(n)).toLocaleString('en-US');
 const pc=n=>(Math.round(n*10)/10)+'%';
@@ -783,9 +797,9 @@ function catalog(){
     const label=p===0?'Not started':ccomplete(c)?'Completed':p+'% complete';
     const btn=p===0?'Start course':ccomplete(c)?'Review course':'Continue';
     const flag=c.id==='crash'?'<span class="course-flag">Start here</span>':'';
-    return `<article class="card course-card ${m.visual} is-${state}" data-topic="${m.topics}"><div class="course-top"><span class="course-mark">${m.icon}</span><span class="course-length">${c.mods.length} modules · ${m.hours}</span></div><div class="cardbody"><div class="course-code">${CODE[c.id]}${flag}</div><h3>${esc(c.name)}</h3><p class="desc">${esc(c.blurb)}</p></div><div class="course-foot"><span class="course-status">${label}</span><button class="card-cta" onclick="route('sf/${c.id}')">${btn} <span class="course-go" aria-hidden="true">→</span></button></div><div class="course-bar" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(c.name)} progress"><span style="width:${p}%"></span></div></article>`;
+    return `<article class="card course-card ${m.visual} is-${state}" data-topic="${m.topics}"><div class="course-top"><span class="course-mark">${m.icon}</span><span class="course-length">${c.mods.length} modules · ${m.hours}</span></div><div class="cardbody"><div class="course-code"><span>${CODE[c.id]}${flag}</span>${window.stageMark?stageMark(window.COURSE_STAGE[c.id]):''}</div><h3>${esc(c.name)}</h3><p class="desc">${esc(c.blurb)}</p></div><div class="course-foot"><span class="course-status">${label}</span><button class="card-cta" onclick="route('sf/${c.id}')">${btn} <span class="course-go" aria-hidden="true">→</span></button></div><div class="course-bar" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(c.name)} progress"><span style="width:${p}%"></span></div></article>`;
   }).join('');
-  return `<div class="page"><section class="hero"><div><div class="eyebrow">Learn · Courses</div><h1 class="title"><em>Startup Foundations</em>,<br><span class="title-rest">for the business behind the idea.</span></h1></div></section><div class="filterbar"><button class="filter selected" onclick="filterCourses(this,'all')">All courses</button><button class="filter" onclick="filterCourses(this,'foundations')">Foundations</button><button class="filter" onclick="filterCourses(this,'marketing')">Marketing</button><button class="filter" onclick="filterCourses(this,'finance')">Finance</button><button class="filter" onclick="filterCourses(this,'operations')">Operations</button><button class="filter" onclick="filterCourses(this,'setup')">Business setup</button></div><div class="grid">${cards}</div></div>`;
+  return `<div class="page"><section class="hero"><div><h1 class="title">Startup Foundations</h1><p class="subtitle">Courses for the business behind the idea.</p></div><input class="search page-search" type="search" placeholder="Search courses" aria-label="Search courses" oninput="applyListFilter()"></section><div class="filterbar"><button class="filter selected" onclick="filterCourses(this,'all')">All courses</button><button class="filter" onclick="filterCourses(this,'foundations')">Foundations</button><button class="filter" onclick="filterCourses(this,'marketing')">Marketing</button><button class="filter" onclick="filterCourses(this,'finance')">Finance</button><button class="filter" onclick="filterCourses(this,'operations')">Operations</button><button class="filter" onclick="filterCourses(this,'setup')">Business setup</button></div><div class="grid">${cards}</div><p class="library-empty" hidden>No courses match that search.</p></div>`;
 }
 function outline(c,cur,pages,pi){
   const items=c.mods.map((mod,j)=>{
@@ -805,7 +819,7 @@ function openCourse(c){
     const state=d?'Completed':S.seen[key+'p0']?'In progress':'Not started';
     return `<details ${j===0&&!d?'open':''}><summary><span class="sf-num${d?' done':''}">${d?'✓':j+1}</span><span><b>Module ${j+1}: ${esc(mod.t)}</b><small>${mod.cards.length} topics${tool?' · '+ACT[tool.k].toLowerCase():''} · ${state}</small></span></summary><div class="sf-det"><p>${esc(mod.hook)}</p><ul>${mod.cards.map(x=>'<li>'+esc(x[0])+'</li>').join('')}${tool?`<li>Activity: ${esc(ACT[tool.k])}</li>`:''}</ul><button class="secondary" onclick="route('sf/${c.id}/${j+1}')">${d?'Review module':'Open module'}</button></div></details>`;
   }).join('');
-  view().innerHTML=`<div class="page"><button class="reader-back" onclick="route('courses')">← All courses</button><section class="hero"><div><div class="eyebrow">${CODE[c.id]}${c.id==='crash'?' · Start here':''}</div><h1 class="title">${esc(c.name)}</h1><p class="sf-lead">${esc(c.blurb)}</p></div><div class="sf-actions"><button class="primary" onclick="route('${href}')">${action}</button><button class="secondary" onclick="route('sf/${c.id}/certificate')">${ccomplete(c)?'View certificate':'Certificate'}</button></div></section><div class="stats"><div class="stat"><b>${c.mods.length}</b><span>modules</span></div><div class="stat"><b>${m.hours.replace(' hours','')}</b><span>hours, self-paced</span></div><div class="stat"><b>${p}%</b><span>complete · ${cdone(c)} of ${c.mods.length} modules</span></div></div>${c.note?`<div class="sf-note">${esc(c.note)}</div>`:''}<div class="section-head"><h2>Syllabus</h2></div><div class="sf-syl">${mods}<details><summary><span class="sf-num${S.cap[c.id]?' done':''}">${S.cap[c.id]?'✓':'★'}</span><span><b>Capstone: ${esc(c.final.t)}</b><small>${c.final.fields.length} deliverables · ${S.cap[c.id]?'Submitted':'Not started'}</small></span></summary><div class="sf-det"><p>${esc(c.final.intro)}</p><button class="secondary" onclick="route('sf/${c.id}/capstone')">Open capstone</button></div></details></div></div>`;
+  view().innerHTML=`<div class="page"><button class="reader-back" onclick="route('courses')">← All courses</button><section class="hero"><div><div class="hero-rate"><div class="eyebrow">${CODE[c.id]}${c.id==='crash'?' · Start here':''}</div>${window.stageMark?stageMark(window.COURSE_STAGE[c.id]):''}</div><h1 class="title">${esc(c.name)}</h1><p class="sf-lead">${esc(c.blurb)}</p></div><div class="sf-actions"><button class="primary" onclick="route('${href}')">${action}</button><button class="secondary" onclick="route('sf/${c.id}/certificate')">${ccomplete(c)?'View certificate':'Certificate'}</button></div></section><div class="stats"><div class="stat"><b>${c.mods.length}</b><span>modules</span></div><div class="stat"><b>${m.hours.replace(' hours','')}</b><span>hours, self-paced</span></div><div class="stat"><b>${p}%</b><span>complete · ${cdone(c)} of ${c.mods.length} modules</span></div></div>${c.note?`<div class="sf-note">${esc(c.note)}</div>`:''}<div class="section-head"><h2>Syllabus</h2></div><div class="sf-syl">${mods}<details><summary><span class="sf-num${S.cap[c.id]?' done':''}">${S.cap[c.id]?'✓':'★'}</span><span><b>Capstone: ${esc(c.final.t)}</b><small>${c.final.fields.length} deliverables · ${S.cap[c.id]?'Submitted':'Not started'}</small></span></summary><div class="sf-det"><p>${esc(c.final.intro)}</p><button class="secondary" onclick="route('sf/${c.id}/capstone')">Open capstone</button></div></details></div></div>`;
   document.title=CODE[c.id]+' '+c.name+' · Campus Connect';
 }
 function openModule(c,mi){
@@ -819,9 +833,9 @@ function openModule(c,mi){
     if(p.k==='sum') S.done[key]=1;
     save();
     let body='';
-    if(p.k==='rd') body=`<div class="sf-kicker">Module ${mi+1} of ${c.mods.length}</div><h1>${esc(m.t)}</h1><p class="sf-hook">${esc(m.hook)}</p><p class="reader-note">${m.cards.length} topics${T?' · then a hands-on activity':''}</p>${m.note?`<div class="sf-note">${esc(m.note)}</div>`:''}<div class="sf-topics">${m.cards.map((x,j)=>`<section class="sf-topic" id="t-${mi+1}-${j+1}"><p class="sf-topic-num">${mi+1}.${j+1}</p><h2>${esc(x[0])}</h2>${readBody(x[1])}${x[2]?`<div class="sf-practice"><b>In practice. </b>${esc(x[2])}</div>`:''}</section>`).join('')}</div>`;
+    if(p.k==='rd') body=`<div class="sf-kicker">Module ${mi+1} of ${c.mods.length}</div><h1>${esc(m.t)}</h1><p class="sf-hook">${esc(m.hook)}</p><p class="reader-note">${m.cards.length} topics${T?' · then a hands-on activity':''}</p>${m.note?`<div class="sf-note">${esc(m.note)}</div>`:''}<div class="sf-topics">${m.cards.map((x,j)=>`<section class="sf-topic" id="t-${mi+1}-${j+1}"><p class="sf-topic-num">${mi+1}.${j+1}</p><h2>${esc(x[0])}</h2>${readBody(x[1])}${x[2]?`<div class="sf-practice"><b>In practice</b><span>${esc(x[2])}</span></div>`:''}</section>`).join('')}</div>`;
     if(p.k==='act') body=`<div class="sf-kicker">Activity</div><h1>${esc(ACT[T.k])}</h1><p class="sf-hook">${['sort','redflag'].includes(T.k)?'Sort the examples from this lesson. Each answer is checked right away.':'The sample is filled in so you can see a result. Replace it with your own numbers.'}</p><div class="toolbox" id="tool"></div>`;
-    if(p.k==='sum') body=`<div class="sf-kicker">Summary</div><h1>Key takeaways</h1><p class="sf-hook">The ideas worth keeping from this module.</p><div class="sf-topics">${m.cards.map((x,j)=>`<section class="sf-topic"><p class="sf-topic-num">${mi+1}.${j+1}</p><h2>${esc(x[0])}</h2><p>${esc(x[1].split(/(?<=[.!?])\s/)[0])}</p></section>`).join('')}</div>`;
+    if(p.k==='sum') body=`<div class="sf-kicker">Summary</div><h1>Key takeaways</h1><p class="sf-hook">The ideas worth keeping from this module.</p><div class="sf-topics sf-recap">${m.cards.map((x,j)=>`<section class="sf-topic"><p class="sf-topic-num">${mi+1}.${j+1}</p><h2>${esc(x[0])}</h2><p>${esc(x[1].split(/(?<=[.!?])\s/)[0])}</p></section>`).join('')}</div>`;
     const last=pi===pages.length-1;
     const nxt=mi+1<c.mods.length?'sf/'+c.id+'/'+(mi+2):'sf/'+c.id+'/capstone';
     const nextBtn=last?`<button class="primary" onclick="route('${nxt}')">${mi+1<c.mods.length?'Next module':'Go to capstone'}</button>`:`<button class="primary" type="button" data-pg="${pi+1}">Next: ${esc(pages[pi+1].n)}</button>`;
