@@ -782,13 +782,13 @@ function started(){return C.filter(c=>cpct(c)>0&&!ccomplete(c)).length}
 function nextHref(c){for(let i=0;i<c.mods.length;i++) if(!S.done[mk(c,i)]) return 'sf/'+c.id+'/'+(i+1);return 'sf/'+c.id+'/capstone'}
 function resume(){
   const base=byId('crash');
-  const fallback={href:'sf/crash',title:base.name,detail:CODE.crash+' · '+base.mods.length+' modules · '+META.crash.hours,pct:cpct(base),action:cpct(base)?'Resume →':'Start →',kicker:cpct(base)?'Continue learning':'Start here'};
+  const fallback={href:'sf/crash',title:base.name,detail:CODE.crash+' · '+base.mods.length+' modules · '+META.crash.hours,pct:cpct(base),action:cpct(base)?'Resume →':'Start →',kicker:cpct(base)?'Continue learning':'Start here',blurb:base.blurb};
   const parts=(S.pos.last||'').split('/');
   const c=parts[0]==='sf'?byId(parts[1]):null;
   if(!c) return fallback;
   const step=parts[2];
   const where=step==='capstone'?'Capstone':step==='certificate'?'Certificate':step?('Module '+step+' of '+c.mods.length):(c.mods.length+' modules');
-  return {href:S.pos.last,title:c.name,detail:CODE[c.id]+' · '+where+' · '+META[c.id].hours,pct:cpct(c),action:ccomplete(c)?'Review →':(cpct(c)?'Resume →':'Start →'),kicker:cpct(c)?'Continue learning':'Start here'};
+  return {href:S.pos.last,title:c.name,detail:CODE[c.id]+' · '+where+' · '+META[c.id].hours,pct:cpct(c),action:ccomplete(c)?'Review →':(cpct(c)?'Resume →':'Start →'),kicker:cpct(c)?'Continue learning':'Start here',blurb:c.blurb};
 }
 function catalog(){
   const cards=C.map(c=>{
